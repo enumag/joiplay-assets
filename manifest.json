@@ -1,0 +1,9 @@
+{
+    "id": "%game%",
+    "name": "Pokémon %game%",
+    "version": "%version%",
+    "description": "",
+    "icon": "icon.png",
+    "executable": "Game.exe",
+    "type": "mkxp-z"
+}
