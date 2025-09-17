@@ -28,8 +28,8 @@ module Zip
   end
 end
 
-require 'zip/ioextras/abstract_input_stream'
-require 'zip/ioextras/abstract_output_stream'
+require_relative 'ioextras/abstract_input_stream'
+require_relative 'ioextras/abstract_output_stream'
 
 # Copyright (C) 2002-2004 Thomas Sondergaard
 # rubyzip is free software; you can redistribute it and/or
