@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "deprecate"
+# require_relative "deprecate"
 
 ##
 # The Version class processes string versions into comparable
@@ -207,9 +207,9 @@ class Gem::Version
   end
 
   def self.nil_versions_are_discouraged!
-    unless Gem::Deprecate.skip
-      warn "nil versions are discouraged and will be deprecated in Rubygems 4"
-    end
+    # unless Gem::Deprecate.skip
+    #   warn "nil versions are discouraged and will be deprecated in Rubygems 4"
+    # end
   end
 
   private_class_method :nil_versions_are_discouraged!
