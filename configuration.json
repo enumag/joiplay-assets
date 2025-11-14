@@ -1,6 +1,6 @@
 {
     "cheats": false,
     "enablePostloadScripts": false,
-    "fontScale": 0.9,
+    "fontScale": "0.9",
     "windowSize": "512x384"
 }
