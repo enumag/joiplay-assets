@@ -2,5 +2,6 @@
     "cheats": false,
     "enablePostloadScripts": false,
     "fontScale": "0.9",
-    "windowSize": "512x384"
+    "windowSize": "512x384",
+    "pathCache": false
 }
