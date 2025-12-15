@@ -1,7 +1,7 @@
 {
     "cheats": false,
     "enablePostloadScripts": false,
-    "fontScale": "0.9",
+    "fontScale": "1.0",
     "windowSize": "512x384",
     "pathCache": false
 }
