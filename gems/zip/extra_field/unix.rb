@@ -1,6 +1,8 @@
+# frozen_string_literal: true
+
 module Zip
   # Info-ZIP Extra for UNIX uid/gid
-  class ExtraField::IUnix < ExtraField::Generic
+  class ExtraField::IUnix < ExtraField::Generic # :nodoc:
     HEADER_ID = 'Ux'
     register_map
 
@@ -20,8 +22,8 @@ module Zip
       return if !size || size == 0
 
       uid, gid = content.unpack('vv')
-      @uid ||= uid
-      @gid ||= gid # rubocop:disable Naming/MemoizedInstanceVariableName
+      @uid = uid
+      @gid = gid
     end
 
     def ==(other)

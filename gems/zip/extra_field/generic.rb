@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Zip
-  class ExtraField::Generic
+  class ExtraField::Generic # :nodoc:
     def self.register_map
       return unless const_defined?(:HEADER_ID)
 
@@ -7,7 +9,7 @@ module Zip
     end
 
     def self.name
-      @name ||= to_s.split('::')[-1]
+      @name ||= to_s.split('::').last.downcase.to_sym
     end
 
     # return field [size, content] or false
@@ -19,26 +21,23 @@ module Zip
         return false
       end
 
-      [binstr[2, 2].unpack1('v'), binstr[4..-1]]
+      [binstr[2, 2].unpack1('v'), binstr[4..]]
     end
 
-    def ==(other)
-      return false if self.class != other.class
-
-      each do |k, v|
-        return false if v != other[k]
-      end
+    # Default strategy is to suppress all extra fields if we're asked to.
+    # Specific extra field types can override this if they need to be kept.
+    def suppress?
       true
     end
 
     def to_local_bin
       s = pack_for_local
-      self.class.const_get(:HEADER_ID) + [s.bytesize].pack('v') << s
+      (self.class.const_get(:HEADER_ID) + [s.bytesize].pack('v')) << s
     end
 
     def to_c_dir_bin
       s = pack_for_c_dir
-      self.class.const_get(:HEADER_ID) + [s.bytesize].pack('v') << s
+      (self.class.const_get(:HEADER_ID) + [s.bytesize].pack('v')) << s
     end
   end
 end

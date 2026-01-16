@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Zip
-  module IOExtras
+  module IOExtras # :nodoc:
     # Implements many of the output convenience methods of IO.
     # relies on <<
-    module AbstractOutputStream
+    module AbstractOutputStream # :nodoc:
       include FakeIO
 
       def write(data)
@@ -11,11 +13,19 @@ module Zip
       end
 
       def print(*params)
-        self << params.join($OUTPUT_FIELD_SEPARATOR) << $OUTPUT_RECORD_SEPARATOR.to_s
+        self << params.join
+
+        # Deflate doesn't like `nil`s or empty strings!
+        unless $OUTPUT_RECORD_SEPARATOR.nil? || $OUTPUT_RECORD_SEPARATOR.empty?
+          self << $OUTPUT_RECORD_SEPARATOR
+        end
+
+        nil
       end
 
       def printf(a_format_string, *params)
         self << format(a_format_string, *params)
+        nil
       end
 
       def putc(an_object)

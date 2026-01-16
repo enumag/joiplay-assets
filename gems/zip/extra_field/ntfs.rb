@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 module Zip
   # PKWARE NTFS Extra Field (0x000a)
   # Only Tag 0x0001 is supported
-  class ExtraField::NTFS < ExtraField::Generic
+  class ExtraField::NTFS < ExtraField::Generic # :nodoc:
     HEADER_ID = [0x000A].pack('v')
     register_map
 
@@ -23,7 +25,7 @@ module Zip
       size, content = initial_parse(binstr)
       (size && content) || return
 
-      content = content[4..-1]
+      content = content[4..]
       tags = parse_tags(content)
 
       tag1 = tags[1]
@@ -51,7 +53,7 @@ module Zip
       # reserved 0 and tag 1
       s = [0, 1].pack('Vv')
 
-      tag1 = ''#.force_encoding(Encoding::BINARY)
+      tag1 = (+'').force_encoding(Encoding::BINARY)
       if @mtime
         tag1 << [to_ntfs_time(@mtime)].pack('Q<')
         if @atime
@@ -84,7 +86,7 @@ module Zip
     end
 
     def from_ntfs_time(ntfs_time)
-      ::Zip::DOSTime.at(ntfs_time / WINDOWS_TICK - SEC_TO_UNIX_EPOCH)
+      ::Zip::DOSTime.at((ntfs_time / WINDOWS_TICK) - SEC_TO_UNIX_EPOCH)
     end
 
     def to_ntfs_time(time)

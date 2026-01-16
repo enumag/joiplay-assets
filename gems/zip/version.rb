@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
 module Zip
-  VERSION = '2.3.2'
+  # The version of the Rubyzip library.
+  VERSION = '3.2.2'
 end

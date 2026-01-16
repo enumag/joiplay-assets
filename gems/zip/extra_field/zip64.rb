@@ -1,7 +1,11 @@
+# frozen_string_literal: true
+
 module Zip
   # Info-ZIP Extra for Zip64 size
-  class ExtraField::Zip64 < ExtraField::Generic
-    attr_accessor :original_size, :compressed_size, :relative_header_offset, :disk_start_number
+  class ExtraField::Zip64 < ExtraField::Generic # :nodoc:
+    attr_accessor :compressed_size, :disk_start_number,
+                  :original_size, :relative_header_offset
+
     HEADER_ID = ['0100'].pack('H*')
     register_map
 
@@ -36,7 +40,9 @@ module Zip
     def parse(original_size, compressed_size, relative_header_offset = nil, disk_start_number = nil)
       @original_size = extract(8, 'Q<') if original_size == 0xFFFFFFFF
       @compressed_size = extract(8, 'Q<') if compressed_size == 0xFFFFFFFF
-      @relative_header_offset = extract(8, 'Q<') if relative_header_offset && relative_header_offset == 0xFFFFFFFF
+      if relative_header_offset && relative_header_offset == 0xFFFFFFFF
+        @relative_header_offset = extract(8, 'Q<')
+      end
       @disk_start_number = extract(4, 'V') if disk_start_number && disk_start_number == 0xFFFF
       @content = nil
       [@original_size || original_size,
@@ -50,8 +56,16 @@ module Zip
     end
     private :extract
 
+    # We can suppress the zip64 extra field unless we know the size is large or
+    # the relative header offset is large (for central directory entries).
+    def suppress?
+      !(@original_size && @original_size >= 0xFFFFFFFF) ||
+        (@relative_header_offset && @relative_header_offset >= 0xFFFFFFFF)
+    end
+
     def pack_for_local
-      # local header entries must contain original size and compressed size; other fields do not apply
+      # Local header entries must contain original size and compressed size;
+      # other fields do not apply.
       return '' unless @original_size && @compressed_size
 
       [@original_size, @compressed_size].pack('Q<Q<')
@@ -59,7 +73,7 @@ module Zip
 
     def pack_for_c_dir
       # central directory entries contain only fields that didn't fit in the main entry part
-      packed = ''#.force_encoding('BINARY')
+      packed = (+'').force_encoding('BINARY')
       packed << [@original_size].pack('Q<') if @original_size
       packed << [@compressed_size].pack('Q<') if @compressed_size
       packed << [@relative_header_offset].pack('Q<') if @relative_header_offset

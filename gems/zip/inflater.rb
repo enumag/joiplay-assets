@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Zip
-  class Inflater < Decompressor #:nodoc:all
+  class Inflater < Decompressor # :nodoc:all
     def initialize(*args)
       super
 
@@ -7,8 +9,8 @@ module Zip
       @zlib_inflater = ::Zlib::Inflate.new(-Zlib::MAX_WBITS)
     end
 
-    def read(length = nil, outbuf = '')
-      return (length.nil? || length.zero? ? '' : nil) if eof
+    def read(length = nil, outbuf = +'')
+      return (length.nil? || length.zero? ? '' : nil) if eof?
 
       while length.nil? || (@buffer.bytesize < length)
         break if input_finished?
@@ -19,11 +21,12 @@ module Zip
       outbuf.replace(@buffer.slice!(0...(length || @buffer.bytesize)))
     end
 
-    def eof
+    def eof?
       @buffer.empty? && input_finished?
     end
 
-    alias eof? eof
+    # Alias for compatibility. Remove for version 4.
+    alias eof eof?
 
     private
 
@@ -37,8 +40,8 @@ module Zip
         retried += 1
         retry
       end
-    rescue Zlib::Error
-      raise(::Zip::DecompressionError, 'zlib error while inflating')
+    rescue Zlib::Error => e
+      raise ::Zip::DecompressionError, e
     end
 
     def input_finished?

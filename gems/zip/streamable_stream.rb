@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 module Zip
   class StreamableStream < DelegateClass(Entry) # :nodoc:all
     def initialize(entry)
-      super(entry)
+      super
       @temp_file = Tempfile.new(::File.basename(name))
       @temp_file.binmode
     end
@@ -42,6 +44,7 @@ module Zip
     end
 
     def clean_up
+      super
       @temp_file.unlink
     end
   end

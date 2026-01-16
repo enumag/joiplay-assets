@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 module Zip
-  module IOExtras
+  module IOExtras # :nodoc:
     # Implements many of the convenience methods of IO
     # such as gets, getc, readline and readlines
     # depends on: input_finished?, produce_input and read
-    module AbstractInputStream
+    module AbstractInputStream # :nodoc:
       include Enumerable
       include FakeIO
 
@@ -11,15 +13,15 @@ module Zip
         super
         @lineno        = 0
         @pos           = 0
-        @output_buffer = ''
+        @output_buffer = +''
       end
 
       attr_accessor :lineno
       attr_reader :pos
 
-      def read(number_of_bytes = nil, buf = '')
+      def read(number_of_bytes = nil, buf = +'')
         tbuf = if @output_buffer.bytesize > 0
-                 if number_of_bytes <= @output_buffer.bytesize
+                 if number_of_bytes && number_of_bytes <= @output_buffer.bytesize
                    @output_buffer.slice!(0, number_of_bytes)
                  else
                    number_of_bytes -= @output_buffer.bytesize if number_of_bytes
@@ -34,7 +36,7 @@ module Zip
                end
 
         if tbuf.nil? || tbuf.empty?
-          return nil if number_of_bytes
+          return nil if number_of_bytes&.positive?
 
           return ''
         end
@@ -74,15 +76,18 @@ module Zip
         a_sep_string = "#{$INPUT_RECORD_SEPARATOR}#{$INPUT_RECORD_SEPARATOR}" if a_sep_string.empty?
 
         buffer_index = 0
-        over_limit   = (number_of_bytes && @output_buffer.bytesize >= number_of_bytes)
+        over_limit   = number_of_bytes && @output_buffer.bytesize >= number_of_bytes
         while (match_index = @output_buffer.index(a_sep_string, buffer_index)).nil? && !over_limit
           buffer_index = [buffer_index, @output_buffer.bytesize - a_sep_string.bytesize].max
           return @output_buffer.empty? ? nil : flush if input_finished?
 
           @output_buffer << produce_input
-          over_limit = (number_of_bytes && @output_buffer.bytesize >= number_of_bytes)
+          over_limit = number_of_bytes && @output_buffer.bytesize >= number_of_bytes
         end
-        sep_index = [match_index + a_sep_string.bytesize, number_of_bytes || @output_buffer.bytesize].min
+        sep_index = [
+          match_index + a_sep_string.bytesize,
+          number_of_bytes || @output_buffer.bytesize
+        ].min
         @pos += sep_index
         @output_buffer.slice!(0...sep_index)
       end
@@ -93,7 +98,7 @@ module Zip
 
       def flush
         ret_val        = @output_buffer
-        @output_buffer = ''
+        @output_buffer = +''
         ret_val
       end
 
@@ -112,11 +117,12 @@ module Zip
 
       alias each each_line
 
-      def eof
+      def eof?
         @output_buffer.empty? && input_finished?
       end
 
-      alias eof? eof
+      # Alias for compatibility. Remove for version 4.
+      alias eof eof?
     end
   end
 end

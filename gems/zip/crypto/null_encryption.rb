@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Zip
-  module NullEncryption
+  module NullEncryption # :nodoc:
     def header_bytesize
       0
     end
@@ -9,7 +11,7 @@ module Zip
     end
   end
 
-  class NullEncrypter < Encrypter
+  class NullEncrypter < Encrypter # :nodoc:
     include NullEncryption
 
     def header(_mtime)
@@ -20,21 +22,11 @@ module Zip
       data
     end
 
-    def data_descriptor(_crc32, _compressed_size, _uncomprssed_size)
+    def data_descriptor(_crc32, _compressed_size, _uncompressed_size)
       ''
     end
 
     def reset!; end
-  end
-
-  class NullDecrypter < Decrypter
-    include NullEncryption
-
-    def decrypt(data)
-      data
-    end
-
-    def reset!(_header); end
   end
 end
 

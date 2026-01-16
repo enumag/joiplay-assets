@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Zip
-  module TraditionalEncryption
+  module TraditionalEncryption # :nodoc:
     def initialize(password)
       @password = password
       reset_keys!
@@ -26,7 +28,7 @@ module Zip
 
     def update_keys(num)
       @key0 = ~Zlib.crc32(num, ~@key0)
-      @key1 = ((@key1 + (@key0 & 0xff)) * 134_775_813 + 1) & 0xffffffff
+      @key1 = (((@key1 + (@key0 & 0xff)) * 134_775_813) + 1) & 0xffffffff
       @key2 = ~Zlib.crc32((@key1 >> 24).chr, ~@key2)
     end
 
@@ -36,7 +38,7 @@ module Zip
     end
   end
 
-  class TraditionalEncrypter < Encrypter
+  class TraditionalEncrypter < Encrypter # :nodoc:
     include TraditionalEncryption
 
     def header(mtime)
@@ -53,8 +55,8 @@ module Zip
       data.unpack('C*').map { |x| encode x }.pack('C*')
     end
 
-    def data_descriptor(crc32, compressed_size, uncomprssed_size)
-      [0x08074b50, crc32, compressed_size, uncomprssed_size].pack('VVVV')
+    def data_descriptor(crc32, compressed_size, uncompressed_size)
+      [0x08074b50, crc32, compressed_size, uncompressed_size].pack('VVVV')
     end
 
     def reset!
@@ -70,7 +72,7 @@ module Zip
     end
   end
 
-  class TraditionalDecrypter < Decrypter
+  class TraditionalDecrypter < Decrypter # :nodoc:
     include TraditionalEncryption
 
     def decrypt(data)
@@ -83,6 +85,8 @@ module Zip
         decode x
       end
     end
+
+    def check_integrity!(_io); end
 
     private
 

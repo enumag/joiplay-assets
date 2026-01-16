@@ -1,16 +1,19 @@
+# frozen_string_literal: true
+
 module Zip
-  module NullDecompressor #:nodoc:all
+  module NullDecompressor # :nodoc:all
     module_function
 
     def read(_length = nil, _outbuf = nil)
       nil
     end
 
-    def eof
+    def eof?
       true
     end
 
-    alias eof? eof
+    # Alias for compatibility. Remove for version 4.
+    alias eof eof?
   end
 end
 

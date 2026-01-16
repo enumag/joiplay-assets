@@ -1,124 +1,114 @@
+# frozen_string_literal: true
+
+require 'fileutils'
+require 'forwardable'
+
+require_relative 'file_split'
+
 module Zip
-  # ZipFile is modeled after java.util.zip.ZipFile from the Java SDK.
-  # The most important methods are those inherited from
-  # ZipCentralDirectory for accessing information about the entries in
-  # the archive and methods such as get_input_stream and
-  # get_output_stream for reading from and writing entries to the
+  # Zip::File is modeled after java.util.zip.ZipFile from the Java SDK.
+  # The most important methods are those for accessing information about
+  # the entries in
+  # the archive and methods such as `get_input_stream` and
+  # `get_output_stream` for reading from and writing entries to the
   # archive. The class includes a few convenience methods such as
-  # #extract for extracting entries to the filesystem, and #remove,
-  # #replace, #rename and #mkdir for making simple modifications to
+  # `extract` for extracting entries to the filesystem, and `remove`,
+  # `replace`, `rename` and `mkdir` for making simple modifications to
   # the archive.
   #
-  # Modifications to a zip archive are not committed until #commit or
-  # #close is called. The method #open accepts a block following
-  # the pattern from File.open offering a simple way to
+  # Modifications to a zip archive are not committed until `commit` or
+  # `close` is called. The method `open` accepts a block following
+  # the pattern from ::File.open offering a simple way to
   # automatically close the archive when the block returns.
   #
-  # The following example opens zip archive <code>my.zip</code>
+  # The following example opens zip archive `my.zip`
   # (creating it if it doesn't exist) and adds an entry
-  # <code>first.txt</code> and a directory entry <code>a_dir</code>
+  # `first.txt` and a directory entry `a_dir`
   # to it.
   #
-  #   require 'zip'
+  # ```
+  # require 'zip'
   #
-  #   Zip::File.open("my.zip", Zip::File::CREATE) {
-  #    |zipfile|
-  #     zipfile.get_output_stream("first.txt") { |f| f.puts "Hello from ZipFile" }
-  #     zipfile.mkdir("a_dir")
-  #   }
+  # Zip::File.open('my.zip', create: true) do |zipfile|
+  #   zipfile.get_output_stream('first.txt') { |f| f.puts 'Hello from Zip::File' }
+  #   zipfile.mkdir('a_dir')
+  # end
+  # ```
   #
-  # The next example reopens <code>my.zip</code> writes the contents of
-  # <code>first.txt</code> to standard out and deletes the entry from
+  # The next example reopens `my.zip`, writes the contents of
+  # `first.txt` to standard out and deletes the entry from
   # the archive.
   #
-  #   require 'zip'
+  # ```
+  # require 'zip'
   #
-  #   Zip::File.open("my.zip", Zip::File::CREATE) {
-  #     |zipfile|
-  #     puts zipfile.read("first.txt")
-  #     zipfile.remove("first.txt")
-  #   }
+  # Zip::File.open('my.zip', create: true) do |zipfile|
+  #   puts zipfile.read('first.txt')
+  #   zipfile.remove('first.txt')
+  # end
   #
-  # ZipFileSystem offers an alternative API that emulates ruby's
-  # interface for accessing the filesystem, ie. the File and Dir classes.
+  # Zip::FileSystem offers an alternative API that emulates ruby's
+  # interface for accessing the filesystem, ie. the ::File and ::Dir classes.
+  class File
+    include Enumerable
+    extend Forwardable
+    extend FileSplit
 
-  class File < CentralDirectory
-    CREATE               = true
-    SPLIT_SIGNATURE      = 0x08074b50
-    ZIP64_EOCD_SIGNATURE = 0x06064b50
-    MAX_SEGMENT_SIZE     = 3_221_225_472
-    MIN_SEGMENT_SIZE     = 65_536
-    DATA_BUFFER_SIZE     = 8192
-    IO_METHODS           = [:tell, :seek, :read, :eof, :close]
+    IO_METHODS = [:tell, :seek, :read, :eof, :close].freeze # :nodoc:
 
-    DEFAULT_OPTIONS = {
-      restore_ownership:   false,
-      restore_permissions: false,
-      restore_times:       false
-    }.freeze
-
+    # The name of this zip archive.
     attr_reader :name
 
     # default -> false.
     attr_accessor :restore_ownership
 
-    # default -> false, but will be set to true in a future version.
+    # default -> true.
     attr_accessor :restore_permissions
 
-    # default -> false, but will be set to true in a future version.
+    # default -> true.
     attr_accessor :restore_times
 
-    # Returns the zip files comment, if it has one
-    attr_accessor :comment
+    def_delegators :@cdir, :comment, :comment=, :each, :entries, :glob, :size
 
-    # Opens a zip archive. Pass true as the second parameter to create
+    # Opens a zip archive. Pass create: true to create
     # a new archive if it doesn't exist already.
-    def initialize(path_or_io, create = false, buffer = false, options = {})
+    def initialize(path_or_io, create: false, buffer: false,
+                   restore_ownership: DEFAULT_RESTORE_OPTIONS[:restore_ownership],
+                   restore_permissions: DEFAULT_RESTORE_OPTIONS[:restore_permissions],
+                   restore_times: DEFAULT_RESTORE_OPTIONS[:restore_times],
+                   compression_level: ::Zip.default_compression,
+                   suppress_extra_fields: false)
       super()
-      options  = DEFAULT_OPTIONS.merge(options)
+
       @name    = path_or_io.respond_to?(:path) ? path_or_io.path : path_or_io
-      @comment = ''
       @create  = create ? true : false # allow any truthy value to mean true
 
-      if ::File.size?(@name.to_s)
-        # There is a file, which exists, that is associated with this zip.
-        @create = false
-        @file_permissions = ::File.stat(@name).mode
+      initialize_cdir(path_or_io, buffer: buffer)
 
-        if buffer
-          read_from_stream(path_or_io)
-        else
-          ::File.open(@name, 'rb') do |f|
-            read_from_stream(f)
-          end
-        end
-      elsif buffer && path_or_io.size > 0
-        # This zip is probably a non-empty StringIO.
-        read_from_stream(path_or_io)
-      elsif @create
-        # This zip is completely new/empty and is to be created.
-        @entry_set = EntrySet.new
-      elsif ::File.zero?(@name)
-        # A file exists, but it is empty.
-        raise Error, "File #{@name} has zero size. Did you mean to pass the create flag?"
-      else
-        # Everything is wrong.
-        raise Error, "File #{@name} not found"
-      end
-
-      @stored_entries      = @entry_set.dup
-      @stored_comment      = @comment
-      @restore_ownership   = options[:restore_ownership]
-      @restore_permissions = options[:restore_permissions]
-      @restore_times       = options[:restore_times]
+      @restore_ownership     = restore_ownership
+      @restore_permissions   = restore_permissions
+      @restore_times         = restore_times
+      @compression_level     = compression_level
+      @suppress_extra_fields = suppress_extra_fields
     end
 
     class << self
       # Similar to ::new. If a block is passed the Zip::File object is passed
       # to the block and is automatically closed afterwards, just as with
       # ruby's builtin File::open method.
-      def open(file_name, create = false, options = {})
-        zf = ::Zip::File.new(file_name, create, false, options)
+      def open(file_name, create: false,
+               restore_ownership: DEFAULT_RESTORE_OPTIONS[:restore_ownership],
+               restore_permissions: DEFAULT_RESTORE_OPTIONS[:restore_permissions],
+               restore_times: DEFAULT_RESTORE_OPTIONS[:restore_times],
+               compression_level: ::Zip.default_compression,
+               suppress_extra_fields: false)
+        zf = ::Zip::File.new(file_name, create:                create,
+                                        restore_ownership:     restore_ownership,
+                                        restore_permissions:   restore_permissions,
+                                        restore_times:         restore_times,
+                                        compression_level:     compression_level,
+                                        suppress_extra_fields: suppress_extra_fields)
+
         return zf unless block_given?
 
         begin
@@ -128,29 +118,30 @@ module Zip
         end
       end
 
-      # Same as #open. But outputs data to a buffer instead of a file
-      def add_buffer
-        io = ::StringIO.new('')
-        zf = ::Zip::File.new(io, true, true)
-        yield zf
-        zf.write_buffer(io)
-      end
-
       # Like #open, but reads zip archive contents from a String or open IO
       # stream, and outputs data to a buffer.
       # (This can be used to extract data from a
       # downloaded zip archive without first saving it to disk.)
-      def open_buffer(io, options = {})
+      def open_buffer(io = ::StringIO.new, create: false,
+                      restore_ownership: DEFAULT_RESTORE_OPTIONS[:restore_ownership],
+                      restore_permissions: DEFAULT_RESTORE_OPTIONS[:restore_permissions],
+                      restore_times: DEFAULT_RESTORE_OPTIONS[:restore_times],
+                      compression_level: ::Zip.default_compression,
+                      suppress_extra_fields: false)
         unless IO_METHODS.map { |method| io.respond_to?(method) }.all? || io.kind_of?(String)
-          raise "Zip::File.open_buffer expects a String or IO-like argument (responds to #{IO_METHODS.join(', ')}). Found: #{io.class}"
+          raise 'Zip::File.open_buffer expects a String or IO-like argument' \
+                "(responds to #{IO_METHODS.join(', ')}). Found: #{io.class}"
         end
 
         io = ::StringIO.new(io) if io.kind_of?(::String)
 
-        # https://github.com/rubyzip/rubyzip/issues/119
-        io.binmode if io.respond_to?(:binmode)
+        zf = ::Zip::File.new(io, create: create, buffer: true,
+                                 restore_ownership:     restore_ownership,
+                                 restore_permissions:   restore_permissions,
+                                 restore_times:         restore_times,
+                                 compression_level:     compression_level,
+                                 suppress_extra_fields: suppress_extra_fields)
 
-        zf = ::Zip::File.new(io, true, true, options)
         return zf unless block_given?
 
         yield zf
@@ -174,81 +165,18 @@ module Zip
         end
       end
 
-      def get_segment_size_for_split(segment_size)
-        if MIN_SEGMENT_SIZE > segment_size
-          MIN_SEGMENT_SIZE
-        elsif MAX_SEGMENT_SIZE < segment_size
-          MAX_SEGMENT_SIZE
+      # Count the entries in a zip archive without reading the whole set of
+      # entry data into memory.
+      def count_entries(path_or_io)
+        cdir = ::Zip::CentralDirectory.new
+
+        if path_or_io.kind_of?(String)
+          ::File.open(path_or_io, 'rb') do |f|
+            cdir.count_entries(f)
+          end
         else
-          segment_size
+          cdir.count_entries(path_or_io)
         end
-      end
-
-      def get_partial_zip_file_name(zip_file_name, partial_zip_file_name)
-        unless partial_zip_file_name.nil?
-          partial_zip_file_name = zip_file_name.sub(/#{::File.basename(zip_file_name)}\z/,
-                                                    partial_zip_file_name + ::File.extname(zip_file_name))
-        end
-        partial_zip_file_name ||= zip_file_name
-        partial_zip_file_name
-      end
-
-      def get_segment_count_for_split(zip_file_size, segment_size)
-        (zip_file_size / segment_size).to_i + (zip_file_size % segment_size == 0 ? 0 : 1)
-      end
-
-      def put_split_signature(szip_file, segment_size)
-        signature_packed = [SPLIT_SIGNATURE].pack('V')
-        szip_file << signature_packed
-        segment_size - signature_packed.size
-      end
-
-      #
-      # TODO: Make the code more understandable
-      #
-      def save_splited_part(zip_file, partial_zip_file_name, zip_file_size, szip_file_index, segment_size, segment_count)
-        ssegment_size  = zip_file_size - zip_file.pos
-        ssegment_size  = segment_size if ssegment_size > segment_size
-        szip_file_name = "#{partial_zip_file_name}.#{format('%03d', szip_file_index)}"
-        ::File.open(szip_file_name, 'wb') do |szip_file|
-          if szip_file_index == 1
-            ssegment_size = put_split_signature(szip_file, segment_size)
-          end
-          chunk_bytes = 0
-          until ssegment_size == chunk_bytes || zip_file.eof?
-            segment_bytes_left = ssegment_size - chunk_bytes
-            buffer_size        = segment_bytes_left < DATA_BUFFER_SIZE ? segment_bytes_left : DATA_BUFFER_SIZE
-            chunk              = zip_file.read(buffer_size)
-            chunk_bytes += buffer_size
-            szip_file << chunk
-            # Info for track splitting
-            yield segment_count, szip_file_index, chunk_bytes, ssegment_size if block_given?
-          end
-        end
-      end
-
-      # Splits an archive into parts with segment size
-      def split(zip_file_name, segment_size = MAX_SEGMENT_SIZE, delete_zip_file = true, partial_zip_file_name = nil)
-        raise Error, "File #{zip_file_name} not found" unless ::File.exist?(zip_file_name)
-        raise Errno::ENOENT, zip_file_name unless ::File.readable?(zip_file_name)
-
-        zip_file_size = ::File.size(zip_file_name)
-        segment_size  = get_segment_size_for_split(segment_size)
-        return if zip_file_size <= segment_size
-
-        segment_count = get_segment_count_for_split(zip_file_size, segment_size)
-        # Checking for correct zip structure
-        ::Zip::File.open(zip_file_name) {}
-        partial_zip_file_name = get_partial_zip_file_name(zip_file_name, partial_zip_file_name)
-        szip_file_index       = 0
-        ::File.open(zip_file_name, 'rb') do |zip_file|
-          until zip_file.eof?
-            szip_file_index += 1
-            save_splited_part(zip_file, partial_zip_file_name, zip_file_size, szip_file_index, segment_size, segment_count)
-          end
-        end
-        ::File.delete(zip_file_name) if delete_zip_file
-        szip_file_index
       end
     end
 
@@ -264,24 +192,28 @@ module Zip
     # specified. If a block is passed the stream object is passed to the block and
     # the stream is automatically closed afterwards just as with ruby's builtin
     # File.open method.
-    def get_output_stream(entry, permission_int = nil, comment = nil,
-                          extra = nil, compressed_size = nil, crc = nil,
-                          compression_method = nil, size = nil, time = nil,
-                          &a_proc)
-
+    def get_output_stream(entry, permissions: nil, comment: nil,
+                          extra: nil, compressed_size: nil, crc: nil,
+                          compression_method: nil, compression_level: nil,
+                          size: nil, time: nil, &a_proc)
       new_entry =
         if entry.kind_of?(Entry)
           entry
         else
-          Entry.new(@name, entry.to_s, comment, extra, compressed_size, crc, compression_method, size, time)
+          Entry.new(
+            @name, entry.to_s, comment: comment, extra: extra,
+            compressed_size: compressed_size, crc: crc, size: size,
+            compression_method: compression_method,
+            compression_level: compression_level, time: time
+          )
         end
       if new_entry.directory?
         raise ArgumentError,
               "cannot open stream to directory entry - '#{new_entry}'"
       end
-      new_entry.unix_perms = permission_int
+      new_entry.unix_perms = permissions
       zip_streamable_entry = StreamableStream.new(new_entry)
-      @entry_set << zip_streamable_entry
+      @cdir << zip_streamable_entry
       zip_streamable_entry.get_output_stream(&a_proc)
     end
 
@@ -299,31 +231,39 @@ module Zip
     def add(entry, src_path, &continue_on_exists_proc)
       continue_on_exists_proc ||= proc { ::Zip.continue_on_exists_proc }
       check_entry_exists(entry, continue_on_exists_proc, 'add')
-      new_entry = entry.kind_of?(::Zip::Entry) ? entry : ::Zip::Entry.new(@name, entry.to_s)
+      new_entry = if entry.kind_of?(::Zip::Entry)
+                    entry
+                  else
+                    ::Zip::Entry.new(
+                      @name, entry.to_s,
+                      compression_level: @compression_level
+                    )
+                  end
       new_entry.gather_fileinfo_from_srcpath(src_path)
-      new_entry.dirty = true
-      @entry_set << new_entry
+      @cdir << new_entry
     end
 
     # Convenience method for adding the contents of a file to the archive
     # in Stored format (uncompressed)
     def add_stored(entry, src_path, &continue_on_exists_proc)
-      entry = ::Zip::Entry.new(@name, entry.to_s, nil, nil, nil, nil, ::Zip::Entry::STORED)
+      entry = ::Zip::Entry.new(
+        @name, entry.to_s, compression_method: ::Zip::Entry::STORED
+      )
       add(entry, src_path, &continue_on_exists_proc)
     end
 
     # Removes the specified entry.
     def remove(entry)
-      @entry_set.delete(get_entry(entry))
+      @cdir.delete(get_entry(entry))
     end
 
     # Renames the specified entry.
     def rename(entry, new_name, &continue_on_exists_proc)
       found_entry = get_entry(entry)
       check_entry_exists(new_name, continue_on_exists_proc, 'rename')
-      @entry_set.delete(found_entry)
+      @cdir.delete(found_entry)
       found_entry.name = new_name
-      @entry_set << found_entry
+      @cdir << found_entry
     end
 
     # Replaces the specified entry with the contents of src_path (from
@@ -334,36 +274,42 @@ module Zip
       add(entry, src_path)
     end
 
-    # Extracts entry to file dest_path.
-    def extract(entry, dest_path, &block)
+    # Extracts `entry` to a file at `entry_path`, with `destination_directory`
+    # as the base location in the filesystem.
+    #
+    # NB: The caller is responsible for making sure `destination_directory` is
+    # safe, if it is passed.
+    def extract(entry, entry_path = nil, destination_directory: '.', &block)
       block ||= proc { ::Zip.on_exists_proc }
       found_entry = get_entry(entry)
-      found_entry.extract(dest_path, &block)
+      entry_path ||= found_entry.name
+      found_entry.extract(entry_path, destination_directory: destination_directory, &block)
     end
 
     # Commits changes that has been made since the previous commit to
     # the zip archive.
     def commit
-      return if !commit_required? || name.kind_of?(StringIO)
+      return if name.kind_of?(StringIO) || !commit_required?
 
       on_success_replace do |tmp_file|
-        ::Zip::OutputStream.open(tmp_file) do |zos|
-          @entry_set.each do |e|
+        ::Zip::OutputStream.open(tmp_file, suppress_extra_fields: @suppress_extra_fields) do |zos|
+          @cdir.each do |e|
             e.write_to_zip_output_stream(zos)
-            e.dirty = false
             e.clean_up
           end
           zos.comment = comment
         end
         true
       end
-      initialize(name)
+      initialize_cdir(@name)
     end
 
     # Write buffer write changes to buffer and return
-    def write_buffer(io = ::StringIO.new(''))
-      ::Zip::OutputStream.write_buffer(io) do |zos|
-        @entry_set.each { |e| e.write_to_zip_output_stream(zos) }
+    def write_buffer(io = ::StringIO.new)
+      return io unless commit_required?
+
+      ::Zip::OutputStream.write_buffer(io, suppress_extra_fields: @suppress_extra_fields) do |zos|
+        @cdir.each { |e| e.write_to_zip_output_stream(zos) }
         zos.comment = comment
       end
     end
@@ -376,27 +322,25 @@ module Zip
     # Returns true if any changes has been made to this archive since
     # the previous commit
     def commit_required?
-      @entry_set.each do |e|
-        return true if e.dirty
+      return true if @create || @cdir.dirty?
+
+      @cdir.each do |e|
+        return true if e.dirty?
       end
-      @comment != @stored_comment || @entry_set != @stored_entries || @create
+
+      false
     end
 
     # Searches for entry with the specified name. Returns nil if
     # no entry is found. See also get_entry
     def find_entry(entry_name)
-      selected_entry = @entry_set.find_entry(entry_name)
+      selected_entry = @cdir.find_entry(entry_name)
       return if selected_entry.nil?
 
       selected_entry.restore_ownership   = @restore_ownership
       selected_entry.restore_permissions = @restore_permissions
       selected_entry.restore_times       = @restore_times
       selected_entry
-    end
-
-    # Searches for entries given a glob
-    def glob(*args, &block)
-      @entry_set.glob(*args, &block)
     end
 
     # Searches for an entry just as find_entry, but throws Errno::ENOENT
@@ -414,33 +358,50 @@ module Zip
 
       entry_name = entry_name.dup.to_s
       entry_name << '/' unless entry_name.end_with?('/')
-      @entry_set << ::Zip::StreamableDirectory.new(@name, entry_name, nil, permission)
+      @cdir << ::Zip::StreamableDirectory.new(@name, entry_name, nil, permission)
     end
 
     private
 
-    def directory?(new_entry, src_path)
-      path_is_directory = ::File.directory?(src_path)
-      if new_entry.directory? && !path_is_directory
-        raise ArgumentError,
-              "entry name '#{new_entry}' indicates directory entry, but " \
-                  "'#{src_path}' is not a directory"
-      elsif !new_entry.directory? && path_is_directory
-        new_entry.name += '/'
+    def initialize_cdir(path_or_io, buffer: false)
+      @cdir = ::Zip::CentralDirectory.new
+
+      if ::File.size?(@name.to_s)
+        # There is a file, which exists, that is associated with this zip.
+        @create = false
+        @file_permissions = ::File.stat(@name).mode
+
+        if buffer
+          # https://github.com/rubyzip/rubyzip/issues/119
+          path_or_io.binmode if path_or_io.respond_to?(:binmode)
+          @cdir.read_from_stream(path_or_io)
+        else
+          ::File.open(@name, 'rb') do |f|
+            @cdir.read_from_stream(f)
+          end
+        end
+      elsif buffer && path_or_io.size > 0
+        # This zip is probably a non-empty StringIO.
+        @create = false
+        @cdir.read_from_stream(path_or_io)
+      elsif !@create && ::File.empty?(@name)
+        # A file exists, but it is empty, and we've said we're
+        # NOT creating a new zip.
+        raise Error, "File #{@name} has zero size. Did you mean to pass the create flag?"
+      elsif !@create
+        # If we get here, and we're not creating a new zip, then
+        # everything is wrong.
+        raise Error, "File #{@name} not found"
       end
-      new_entry.directory? && path_is_directory
     end
 
     def check_entry_exists(entry_name, continue_on_exists_proc, proc_name)
-      continue_on_exists_proc ||= proc { Zip.continue_on_exists_proc }
-      return unless @entry_set.include?(entry_name)
+      return unless @cdir.include?(entry_name)
 
-      if continue_on_exists_proc.call
-        remove get_entry(entry_name)
-      else
-        raise ::Zip::EntryExistsError,
-              proc_name + " failed. Entry #{entry_name} already exists"
-      end
+      continue_on_exists_proc ||= proc { Zip.continue_on_exists_proc }
+      raise ::Zip::EntryExistsError.new proc_name, entry_name unless continue_on_exists_proc.call
+
+      remove get_entry(entry_name)
     end
 
     def check_file(path)
@@ -450,14 +411,12 @@ module Zip
     def on_success_replace
       dirname, basename = ::File.split(name)
       ::Dir::Tmpname.create(basename, dirname) do |tmp_filename|
-        begin
-          if yield tmp_filename
-            ::File.rename(tmp_filename, name)
-            ::File.chmod(@file_permissions, name) unless @create
-          end
-        ensure
-          ::File.unlink(tmp_filename) if ::File.exist?(tmp_filename)
+        if yield tmp_filename
+          ::File.rename(tmp_filename, name)
+          ::File.chmod(@file_permissions, name) unless @create
         end
+      ensure
+        FileUtils.rm_f(tmp_filename)
       end
     end
   end
