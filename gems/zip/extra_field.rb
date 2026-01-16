@@ -69,13 +69,17 @@ module Zip
     end
 
     def to_local_bin
-      ordered_values.map! { |v| v.to_local_bin.force_encoding('BINARY') }.join
+      ordered_values.map! {
+        |v| v.to_local_bin#.force_encoding('BINARY')
+      }.join
     end
 
     alias to_s to_local_bin
 
     def to_c_dir_bin
-      ordered_values.map! { |v| v.to_c_dir_bin.force_encoding('BINARY') }.join
+      ordered_values.map! {
+        |v| v.to_c_dir_bin#.force_encoding('BINARY')
+      }.join
     end
 
     def c_dir_size
@@ -91,14 +95,14 @@ module Zip
   end
 end
 
-require 'zip/extra_field/unknown'
-require 'zip/extra_field/generic'
-require 'zip/extra_field/universal_time'
-require 'zip/extra_field/old_unix'
-require 'zip/extra_field/unix'
-require 'zip/extra_field/zip64'
-require 'zip/extra_field/ntfs'
-require 'zip/extra_field/aes'
+require_relative 'extra_field/unknown'
+require_relative 'extra_field/generic'
+require_relative 'extra_field/universal_time'
+require_relative 'extra_field/old_unix'
+require_relative 'extra_field/unix'
+require_relative 'extra_field/zip64'
+require_relative 'extra_field/ntfs'
+require_relative 'extra_field/aes'
 
 # Copyright (C) 2002, 2003 Thomas Sondergaard
 # rubyzip is free software; you can redistribute it and/or

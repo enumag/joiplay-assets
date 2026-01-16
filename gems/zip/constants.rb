@@ -3,7 +3,8 @@
 module Zip
   # :stopdoc:
 
-  RUNNING_ON_WINDOWS = RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/i
+  # RUNNING_ON_WINDOWS = RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/i
+  RUNNING_ON_WINDOWS = false
 
   CENTRAL_DIRECTORY_ENTRY_SIGNATURE = 0x02014b50
   CDIR_ENTRY_STATIC_HEADER_LENGTH   = 46
