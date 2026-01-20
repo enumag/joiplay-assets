@@ -13,10 +13,6 @@ The rubyzip gem is based on version 3.2.2.
 
 rubygems.rb only contains the module definition and loads version.rb
 rubygems/version.rb had deprecations disabled
-zip.rb had loading of zlib and rbconfig disables as they're unnecessary on JoiPlay
-zip.rb had loading of stringio disabled as it is unavailable on JoiPlay - this may cause problems
 zip/constants.rb had RUNNING_ON_WINDOWS hardcoded to false
-zip/entry.rb has loading of pathname disable as it is unavailable on JoiPlay
 zip/file.rb has the conditions in commit method swapped (`return if name.kind_of?(StringIO) || !commit_required?` => `return if !commit_required? || name.kind_of?(StringIO)`)
-zip/extra_field.rb and zip/extra_field/zip64.rb had `.force_encoding('BINARY')` commented out because JoiPlay's Ruby had no encodings
-zip.rb, zip/extra_field.rb and zip/ioextras.rb had require replaced with require_relative and paths adjusted accordingly because JoiPlay RPG Maker Plugin 1.20.51 completely broke require
+zip/extra_field.rb, zip/extra_field/ntfs.rb and zip/extra_field/zip64.rb had `.force_encoding('BINARY')` commented out because JoiPlay's Ruby had no encodings

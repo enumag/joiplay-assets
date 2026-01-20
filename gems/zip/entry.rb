@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# require 'pathname'
+require 'pathname'
 
 require_relative 'constants'
 require_relative 'dirtyable'
