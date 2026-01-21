@@ -6,6 +6,7 @@ Note: Back button needs to use X rather than Escape because X works as backspace
 
 Currently, we're using these:
 
+Default layout:
     "aKeyCode": 47,  // S item
     "bKeyCode": 48,  // T turbo
     "cKeyCode": 54,  // Z run
@@ -16,8 +17,18 @@ Currently, we're using these:
     "rKeyCode": 31,  // C action
     "clKeyCode": 45, // Q previous page
     "crKeyCode": 51, // W next page
-    59               // Left Shift turbo (hold) (for gamepad only)
-    60               // Right Shift run (hold) (for gamepad only)
+
+Alternate layout:
+    "aKeyCode1": 36,  // H run on hold
+    "bKeyCode1": 40,  // L turbo on hold
+    "cKeyCode1": 41,  // M mute
+    "xKeyCode1": 133, // F3 screenshot
+    "yKeyCode1": 138, // F8 <function>
+    "zKeyCode1": 141, // F11 view controls
+    "lKeyCode1": 52,  // X back (same)
+    "rKeyCode1": 31,  // C action (same)
+    "clKeyCode1": 45, // Q previous page (same)
+    "crKeyCode1": 51, // W next page (same)
 
 The layout of the buttons is like this:
 
@@ -62,11 +73,11 @@ If I choose OK the mapping is different and several buttons do nothing at all.
         },
         {
             "key": 104,  // L2
-            "value": 59  // Left Shift turbo (hold)
+            "value": 40  // L turbo on hold
         },
         {
             "key": 105,  // R2
-            "value": 60  // Right Shift run (hold)
+            "value": 36  // H run on hold
         },
         {
             "key": 106,  // Left Stick

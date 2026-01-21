@@ -13,12 +13,12 @@
     "rKeyCode": 31,
     "clKeyCode": 45,
     "crKeyCode": 51,
-    "aKeyCode1": 47,
-    "bKeyCode1": 48,
-    "cKeyCode1": 54,
-    "xKeyCode1": 29,
-    "yKeyCode1": 32,
-    "zKeyCode1": 142,
+    "aKeyCode1": 36,
+    "bKeyCode1": 40,
+    "cKeyCode1": 41,
+    "xKeyCode1": 133,
+    "yKeyCode1": 138,
+    "zKeyCode1": 141,
     "lKeyCode1": 52,
     "rKeyCode1": 31,
     "clKeyCode1": 45,
@@ -50,11 +50,11 @@
         },
         {
             "key": 104,
-            "value": 59
+            "value": 40
         },
         {
             "key": 105,
-            "value": 60
+            "value": 36
         },
         {
             "key": 106,
