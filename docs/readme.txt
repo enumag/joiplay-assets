@@ -1,6 +1,9 @@
-The key codes can be found here:
+Key codes to use in gamepad.json can be found here:
 https://developer.android.com/reference/android/view/KeyEvent
 https://www.temblast.com/ref/akeyscode.htm (backup saved as AndroidKeycodes.mhtml)
+
+Key codes to use in game scripts can be found here:
+https://asawicki.info/nosense/doc/devices/keyboard/key_codes.html
 
 Note: Back button needs to use X rather than Escape because X works as backspace on text input while Escape does not.
 
